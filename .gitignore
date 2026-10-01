@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+
+# Local coordination kit, account settings and original delivery archive.
+ai-team-astra-sol/
+ai-team-astra-sol-guide.md
+ai-team-astra-sol-v1.0.0.zip
+.agents/
+.aws/
+.codex/
+.development/

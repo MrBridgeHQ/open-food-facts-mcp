@@ -1,0 +1,30 @@
+{
+  "get_product": {
+    "barcode": "3017620422003",
+    "language": "en"
+  },
+  "search_products": {
+    "country": "en:france",
+    "category": "en:breakfast-cereals",
+    "nutriscore": "b",
+    "page": 1,
+    "page_size": 10,
+    "language": "en"
+  },
+  "search_text": {
+    "query": "unsweetened oat drink",
+    "page": 1,
+    "page_size": 5,
+    "language": "en"
+  },
+  "get_taxonomy": {
+    "query": "breakfast cereal",
+    "taxonomy": "categories",
+    "language": "en",
+    "limit": 8
+  },
+  "compare_products": {
+    "barcodes": ["3017620422003", "5000159484695"],
+    "language": "en"
+  }
+}

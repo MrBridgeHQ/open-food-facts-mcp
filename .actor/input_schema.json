@@ -1,8 +1,20 @@
 {
   "title": "Open Food Facts MCP",
-  "description": "MCP calls supply tool arguments over HTTP. A normal Actor run performs an offline startup check; it does not query Open Food Facts.",
+  "description": "Provide your own monitored contact email before starting this MCP server. For Standby, save it in your private task and enable passing task input to Standby runs.",
   "type": "object",
   "schemaVersion": 1,
-  "properties": {},
-  "required": []
+  "properties": {
+    "contactEmail": {
+      "title": "Your contact email",
+      "type": "string",
+      "description": "Enter your own monitored email address. It is stored in the Apify task/run input and sent to Open Food Facts in the User-Agent header for your requests. No shared developer address is used. Maximum 160 ASCII characters.",
+      "editor": "textfield",
+      "minLength": 3,
+      "maxLength": 160,
+      "pattern": "^[^\\s()@]+@[^\\s()@]+\\.[^\\s()@]+$"
+    }
+  },
+  "required": [
+    "contactEmail"
+  ]
 }

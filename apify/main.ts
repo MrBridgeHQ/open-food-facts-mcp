@@ -1,6 +1,7 @@
+import { resolveActorUserAgent } from './input.ts';
 import { createActorHandler, createActorHttpServer, parseActorConfig } from './server.ts';
 
-const config = parseActorConfig(process.env);
+const config = parseActorConfig({ ...process.env, OFF_USER_AGENT: await resolveActorUserAgent(process.env) });
 const actor = await createActorHandler({ userAgent: config.userAgent });
 if (config.atHome && !config.standby) {
   // Normal batch Start is an offline protocol self-check; it makes zero OFF requests.

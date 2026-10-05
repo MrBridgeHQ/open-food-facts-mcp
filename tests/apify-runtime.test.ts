@@ -14,6 +14,15 @@ const denyFetchHook = 'data:text/javascript,' + encodeURIComponent(
   'globalThis.fetch=()=>{process.stderr.write("UNEXPECTED_FETCH\\n");throw new Error("unexpected network fetch")}'
 );
 
+const mockInputHook = 'data:text/javascript,' + encodeURIComponent(
+  'globalThis.fetch=async(input,init)=>{' +
+  'if(String(input)==="https://api.apify.com/v2/key-value-stores/store_123/records/INPUT"&&' +
+  'new Headers(init?.headers).get("Authorization")==="Bearer test-token")' +
+  'return new Response(JSON.stringify({contactEmail:"run-owner@example.org"}));' +
+  'process.stderr.write("UNEXPECTED_FETCH\\n");throw new Error("unexpected fetch")' +
+  '}'
+);
+
 async function freePort(): Promise<number> {
   const probe = createServer();
   await new Promise<void>(resolve => probe.listen(0, '127.0.0.1', resolve));
@@ -151,25 +160,28 @@ test('GET and subscriptions/listen finish with an error rather than an open stre
   } finally { await runtime.http.shutdown(); }
 });
 
-test('batch main self-check exits successfully without any fetch', () => {
+test('batch main validates mocked Actor input and exits without OFF requests', () => {
   const child = spawnSync(process.execPath,
-    ['--experimental-strip-types', '--import', denyFetchHook, entry],
+    ['--experimental-strip-types', '--import', mockInputHook, entry],
     { encoding: 'utf8', timeout: 5_000,
       env: { ...process.env, OFF_USER_AGENT: ua,
-        APIFY_IS_AT_HOME: '1', APIFY_META_ORIGIN: 'ACTOR' } });
+        APIFY_IS_AT_HOME: '1', APIFY_META_ORIGIN: 'ACTOR',
+        ACTOR_DEFAULT_KEY_VALUE_STORE_ID: 'store_123', APIFY_TOKEN: 'test-token' } });
   assert.equal(child.status, 0, child.stderr);
   assert.match(child.stderr, /MCP self-check: 5 tools/);
   assert.doesNotMatch(child.stderr, /UNEXPECTED_FETCH/);
 });
 
 for (const mode of ['LOCAL', 'STANDBY'] as const) {
-  test(mode + ' main answers readiness and exits cleanly on SIGTERM without fetch', async () => {
+  test(mode + ' main answers readiness and exits cleanly on SIGTERM without OFF requests', async () => {
     const port = await freePort();
     const child = spawn(process.execPath,
-      ['--experimental-strip-types', '--import', denyFetchHook, entry],
+      ['--experimental-strip-types', '--import', mode === 'STANDBY' ? mockInputHook : denyFetchHook, entry],
       { stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, OFF_USER_AGENT: ua,
           APIFY_IS_AT_HOME: mode === 'STANDBY' ? '1' : '0', APIFY_META_ORIGIN: mode,
+          OFF_CONTACT_EMAIL: mode === 'LOCAL' ? 'local@example.org' : undefined,
+          ACTOR_DEFAULT_KEY_VALUE_STORE_ID: 'store_123', APIFY_TOKEN: 'test-token',
           ACTOR_WEB_SERVER_PORT: String(port), ACTOR_STANDBY_URL: 'http://127.0.0.1:' + port } });
     let stderr = '';
     child.stderr.on('data', chunk => { stderr += chunk.toString(); });

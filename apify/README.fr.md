@@ -6,11 +6,19 @@ Projet indépendant, sans affiliation officielle à Open Food Facts. [English do
 
 ## Connexion
 
-Après déploiement et activation de Standby, copiez l'URL Standby réellement fournie dans Apify Console. Dans votre client MCP distant, utilisez le transport **Streamable HTTP**, cette URL suivie de `/mcp`, et l'en-tête `Authorization: Bearer <votre token API Apify>`. Conservez le token dans la configuration secrète du client.
+Chaque utilisateur doit fournir **sa propre adresse email de contact**, suivie et valide.
+
+1. Créez une **tâche privée** à partir de cet Actor dans votre compte Apify.
+2. Renseignez le champ obligatoire **Your contact email** (`contactEmail`) et enregistrez la tâche. Aucune adresse n'est préremplie.
+3. Activez Standby pour cette tâche et la transmission de son input (`actorStandby.shouldPassActorInput: true`). Le propriétaire de l'Actor doit autoriser la configuration au niveau des tâches.
+4. Copiez l'URL Standby réelle de la tâche dans son onglet Endpoints.
+5. Dans votre client MCP, choisissez **Streamable HTTP**, cette URL suivie de `/mcp`, et `Authorization: Bearer <votre token API Apify>`.
+
+Conservez le token dans la configuration secrète du client. L'URL de votre tâche permet de transmettre votre configuration au run.
 
 La passerelle Apify authentifie les appels. Les en-têtes d'autorisation et les cookies entrants ne sont pas transmis à Open Food Facts. Les clients MCP de la génération 2025 peuvent recevoir des réponses SSE finies. Les abonnements persistants et l'ancien transport séparé `/sse` ne sont pas exposés.
 
-Le bouton **Start** effectue un contrôle hors ligne du démarrage et de la liste des outils, puis termine le run. Pour utiliser le MCP, connectez-vous à l'URL **Standby**. Un run classique ne produit ni dataset ni URL MCP permanente. La plateforme démarre les conteneurs à la demande ; le délai dépend de son état.
+Le bouton **Start** lit et valide votre input, contrôle le démarrage et la liste des outils, puis termine le run sans appel Open Food Facts. Pour utiliser le MCP, connectez-vous à l'URL **Standby**. Un run classique ne produit ni dataset ni URL MCP permanente. La plateforme démarre les conteneurs à la demande ; le délai dépend de son état.
 
 ## Outils
 
@@ -26,11 +34,22 @@ Ces arguments appartiennent aux appels MCP ; ce ne sont pas des champs du formul
 
 ## Configuration et déploiement
 
-Utilisez le dépôt GitHub comme source Git de l'Actor. `.actor/actor.json` désigne le Dockerfile et les schémas. Configurez la variable d'environnement suivante avec une adresse de contact réelle et suivie :
+Utilisez le dépôt GitHub comme source Git de l'Actor. `.actor/actor.json` désigne le Dockerfile et les schémas. Ne préremplissez aucun email dans la configuration commune : chaque utilisateur renseigne `contactEmail` dans sa tâche privée. Ce champ est obligatoire dans le formulaire et contrôlé au démarrage.
 
-```text
-OFF_USER_AGENT=open-food-facts-mcp/0.1.0 (votre-contact@example.org)
+Pour chaque tâche, activez la transmission de l'input :
+
+```json
+{
+  "actorStandby": {
+    "isEnabled": true,
+    "shouldPassActorInput": true
+  }
+}
 ```
+
+Ce fragment configure la tâche sur Apify ; ce n'est ni un argument MCP ni une propriété supplémentaire d'`actor.json`. Le propriétaire doit laisser les surcharges de configuration des tâches autorisées. Références : [création de tâche](https://docs.apify.com/api/v2/actor-tasks-post), [configuration Standby](https://docs.apify.com/actors/running/standby).
+
+Sur Apify, le serveur lit l'input du run dans son stockage clé-valeur par défaut avec le token fourni par la plateforme, puis construit `open-food-facts-mcp/0.1.0 (<contactEmail>)`. Un email manquant ou invalide bloque le démarrage. Aucune adresse développeur ni variable partagée `OFF_USER_AGENT` ne sert de remplacement.
 
 Les lectures publiques ne nécessitent pas de clé Open Food Facts. Apify fournit le port et les URL via `ACTOR_WEB_SERVER_PORT`, `ACTOR_STANDBY_URL` et `ACTOR_WEB_SERVER_URL`. Le serveur écoute sur `0.0.0.0` sur Apify et contrôle les en-têtes Host et Origin d'après ces URL.
 
@@ -49,9 +68,11 @@ node --experimental-strip-types --test tests/*.test.ts
 Si les dépendances sont déjà installées, omettez le bootstrap. Pour démarrer :
 
 ```sh
-export OFF_USER_AGENT='open-food-facts-mcp/0.1.0 (votre-contact@example.org)'
+export OFF_CONTACT_EMAIL='votre-contact@example.org'
 node --experimental-strip-types apify/main.ts
 ```
+
+Remplacez l'exemple par votre propre adresse. Cette entrée HTTP exige `OFF_CONTACT_EMAIL` ; l'entrée STDIO conserve sa configuration existante `OFF_USER_AGENT`.
 
 Le MCP local est accessible sur `http://127.0.0.1:4321/mcp`. `GET /` vérifie la disponibilité sans appel Open Food Facts. La variable facultative `OFF_LOCAL_BEARER_TOKEN` permet de protéger les appels locaux. Elle est distincte de l'authentification Apify et reste normalement absente sur la plateforme.
 
@@ -74,3 +95,9 @@ Signalez les problèmes dans les [issues GitHub](https://github.com/MrBridgeHQ/o
 ### Compatibilité des clients et Origin
 
 Les clients natifs ou serveur omettent généralement `Origin`. S'il est envoyé, il doit correspondre exactement à une origine des URL configurées du serveur. Ce wrapper n'active pas les clients navigateur entre origines différentes et n'envoie pas de CORS générique. Le routage réel de la passerelle reste à valider lors du déploiement.
+
+## Utilisation de l'email
+
+L'adresse est enregistrée dans l'input de votre tâche/run Apify et transmise à Open Food Facts dans les en-têtes des requêtes comme contact pour votre usage. L'application ne l'écrit pas dans ses logs ni dans les résultats MCP. Elle vérifie la syntaxe, pas la possession ni la délivrabilité de la boîte. Conservez la tâche et le token privés ; en cas de changement d'adresse, enregistrez la nouvelle valeur avant un nouveau run.
+
+Apify documente une isolation des runs Standby par compte utilisateur. Le serveur utilise un contact par run ; il ne distingue pas plusieurs personnes partageant le même compte, la même tâche ou le même token. Chaque utilisateur indépendant doit disposer de sa propre configuration.

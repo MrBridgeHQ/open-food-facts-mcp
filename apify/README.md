@@ -6,17 +6,23 @@ This is an independent project, not an official Open Food Facts service. [Docume
 
 ## Connect
 
-After deploying the Actor and enabling Standby, copy its **actual Standby URL** from Apify Console. Configure a compatible remote MCP client with:
+Each user must supply their **own monitored contact email**. In Apify Console:
+
+1. Create a **private task** from this Actor in your account.
+2. Fill in the required **Your contact email** (`contactEmail`) field and save the task. There is no default address.
+3. Enable Standby for that task and enable input forwarding (`actorStandby.shouldPassActorInput: true`). The Actor owner must allow task-level configuration overrides.
+4. Copy the task's **actual Standby URL** from its Endpoints tab. Use the task URL so the run receives your saved input.
+5. Configure a compatible remote MCP client with:
 
 | Setting | Value |
 | --- | --- |
 | Transport | Streamable HTTP |
-| URL | Your Actor's Standby URL followed by `/mcp` |
+| URL | Your private task's Standby URL followed by `/mcp` |
 | Header | `Authorization: Bearer <your Apify API token>` |
 
 Keep your token in your client's secret configuration. Apify's gateway authenticates the request. Incoming authorization and cookie headers are not forwarded to Open Food Facts. Clients should negotiate the protocol through MCP initialization; finite SSE responses are supported for legacy 2025-era clients. Persistent subscriptions and the older separate `/sse` transport are not exposed.
 
-A regular **Start** run performs an offline initialization and tool-discovery check, then exits. To use the server interactively, connect through **Standby**. Starting a batch run does not produce a dataset or a permanent MCP URL. Standby starts containers on demand; startup time and availability depend on the platform.
+A regular **Start** run reads and validates your input, performs initialization and tool discovery without querying Open Food Facts, then exits. To use the server interactively, connect through **Standby**. Starting a batch run does not produce a dataset or a permanent MCP URL. Standby starts containers on demand; startup time and availability depend on the platform.
 
 ## Available tools
 
@@ -32,13 +38,24 @@ These are MCP tool arguments, not Actor input fields or REST query parameters. P
 
 ## Deploy your own Actor
 
-Use the repository as the Actor's Git source. The `.actor/actor.json` definition selects the Dockerfile, MCP path, schemas, and this README. Configure this runtime environment variable before running:
+Use the repository as the Actor's Git source. The `.actor/actor.json` definition selects the Dockerfile, MCP path, schemas, and this README. Leave the default Actor input without any prefilled email. Every user supplies `contactEmail` through their own private task; the form requires it and runtime validation checks it again.
 
-```text
-OFF_USER_AGENT=open-food-facts-mcp/0.1.0 (your-monitored-contact@example.org)
+For a user's task, enable input forwarding in its Standby configuration:
+
+```json
+{
+  "actorStandby": {
+    "isEnabled": true,
+    "shouldPassActorInput": true
+  }
+}
 ```
 
-Replace the example email with a real monitored contact. Public Open Food Facts reads do not need an Open Food Facts API key. The Actor receives its HTTP port and public URLs from Apify's `ACTOR_WEB_SERVER_PORT`, `ACTOR_STANDBY_URL`, and `ACTOR_WEB_SERVER_URL` environment variables. It binds to `0.0.0.0` on Apify and uses the supplied URLs to validate Host and Origin headers.
+This fragment configures a task through the platform; it is not tool-call input or an additional `actor.json` property. The owner must leave task overrides enabled. See [creating tasks](https://docs.apify.com/api/v2/actor-tasks-post) and [Standby task configuration](https://docs.apify.com/actors/running/standby).
+
+On Apify, the server reads the current run's input record from its default key-value store using the platform-provided token. It constructs `open-food-facts-mcp/0.1.0 (<contactEmail>)` in memory. A missing or invalid address prevents startup; there is no fallback to a shared `OFF_USER_AGENT` or developer address. Public Open Food Facts reads do not need an Open Food Facts API key.
+
+The Actor receives its HTTP port and public URLs from Apify's `ACTOR_WEB_SERVER_PORT`, `ACTOR_STANDBY_URL`, and `ACTOR_WEB_SERVER_URL` environment variables. It binds to `0.0.0.0` on Apify and uses the supplied URLs to validate Host and Origin headers.
 
 Enable Standby using the successful build. The definition requests 256 MB as a starting memory allocation; deployment validation should confirm the allocation is adequate. No per-event charging is implemented by this project. Apify infrastructure usage and your account's platform charges still apply. Creating an Actor does not publish it to the public Apify Store.
 
@@ -55,9 +72,11 @@ node --experimental-strip-types --test tests/*.test.ts
 With dependencies already installed, skip the bootstrap. Start the HTTP server:
 
 ```sh
-export OFF_USER_AGENT='open-food-facts-mcp/0.1.0 (your-monitored-contact@example.org)'
+export OFF_CONTACT_EMAIL='your-monitored-contact@example.org'
 node --experimental-strip-types apify/main.ts
 ```
+
+Replace the example with your own address. This HTTP entry point requires `OFF_CONTACT_EMAIL`; the original STDIO entry point keeps its existing `OFF_USER_AGENT` configuration.
 
 The local endpoint is `http://127.0.0.1:4321/mcp`. `GET /` is a readiness check that makes no Open Food Facts request. Optionally set `OFF_LOCAL_BEARER_TOKEN` to require a bearer token locally. This is separate from Apify gateway authentication; normally leave it unset on Apify.
 
@@ -80,3 +99,9 @@ Report bugs in [GitHub Issues](https://github.com/MrBridgeHQ/open-food-facts-mcp
 ### Client origin compatibility
 
 Native/server-side clients normally omit `Origin`. If a client sends it, it must exactly match one of the configured server URL origins. Cross-origin browser clients are not enabled by this wrapper; it does not send wildcard CORS headers. Actual gateway routing remains a deployment validation step.
+
+## Contact email handling
+
+The email is stored in your Apify task/run input and sent to Open Food Facts in request headers as the contact for your usage. The application does not log the email or include it in MCP results. Email syntax is checked; mailbox ownership and deliverability are not verified. Use a private task, keep access to it and your API token private, and save a new contact before starting a new run if the address changes.
+
+Apify documents that Standby runs are isolated per user account. This server uses one contact per run; it does not authenticate different people who share the same Apify account, task or token. Do not share a task/token across independently accountable users.

@@ -1,0 +1,16 @@
+{
+  "actorSpecification": 1,
+  "name": "open-food-facts-mcp",
+  "title": "Open Food Facts MCP",
+  "description": "Read product, nutrition, search and taxonomy data through five Open Food Facts MCP tools.",
+  "version": "0.1",
+  "buildTag": "candidate",
+  "usesStandbyMode": true,
+  "webServerMcpPath": "/mcp",
+  "dockerfile": "./Dockerfile",
+  "dockerContextDir": "..",
+  "readme": "../apify/README.md",
+  "input": "./input_schema.json",
+  "webServerSchema": "./web_server_schema.json",
+  "defaultMemoryMbytes": 256
+}

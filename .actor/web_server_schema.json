@@ -1,0 +1,139 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Open Food Facts MCP",
+    "version": "0.1.0",
+    "description": "Stateless Streamable HTTP MCP endpoint. Obtain the actual Standby base URL from Apify Console. Product tool arguments are MCP messages, not REST query parameters."
+  },
+  "security": [
+    {
+      "apifyToken": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apifyToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Apify API token verified by the Standby gateway."
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "readiness",
+        "summary": "Server readiness",
+        "responses": {
+          "200": {
+            "description": "MCP backend initialized; no Open Food Facts request is made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "read_only",
+                    "tools"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    },
+                    "read_only": {
+                      "type": "boolean"
+                    },
+                    "tools": {
+                      "type": "integer",
+                      "example": 5
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "operationId": "mcp",
+        "summary": "MCP protocol request",
+        "description": "Use a compatible MCP client for initialization, discovery and tools/call. Both modern MCP and stateless 2025-era requests are supported; legacy replies can be finite SSE responses.",
+        "parameters": [
+          {
+            "name": "MCP-Protocol-Version",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Negotiated MCP protocol version."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MCP result or protocol error. Tool execution errors can be indicated by isError in a successful protocol response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "MCP notification acknowledged."
+          },
+          "400": {
+            "description": "Invalid request or Host header."
+          },
+          "401": {
+            "description": "Missing or invalid authentication."
+          },
+          "403": {
+            "description": "Origin rejected or access denied."
+          },
+          "405": {
+            "description": "Method or persistent subscription unavailable."
+          },
+          "413": {
+            "description": "Request body exceeds 64 KiB."
+          },
+          "429": {
+            "description": "Platform request limit reached."
+          },
+          "500": {
+            "description": "Unexpected server failure."
+          },
+          "503": {
+            "description": "Server is busy or shutting down."
+          },
+          "504": {
+            "description": "Request deadline reached."
+          }
+        }
+      }
+    }
+  }
+}

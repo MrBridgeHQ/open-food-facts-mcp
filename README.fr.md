@@ -77,3 +77,7 @@ Parmi les projets communautaires du domaine figurent [domdomegg/openfoodfacts-mc
 - [Documentation de l'API Open Food Facts](https://openfoodfacts.github.io/openfoodfacts-server/api/)
 - [Historique des versions de l'API et du schéma produit](https://openfoodfacts.github.io/openfoodfacts-server/api/ref-api-and-product-schema-change-log/)
 - [Données et conditions de réutilisation Open Food Facts](https://world.openfoodfacts.org/data)
+
+## Actor Apify
+
+Une entrée Streamable HTTP est disponible pour Apify Standby. La [documentation française de l’Actor](apify/README.fr.md) décrit `/mcp`, l’authentification, le déploiement, le lancement HTTP local et les limites. L’entrée STDIO reste disponible.

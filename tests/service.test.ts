@@ -74,7 +74,7 @@ test('unexpected search and autocomplete JSON is an upstream schema error',async
 test('search text and taxonomy encode query and bound results',async()=>{
   const {service,urls}=fixture(url=>url.pathname==='/search'?json({hits:[{code:'1234',product_name:'A'}],count:1,is_count_exact:true}):json({results:[{id:'en:apple'}]}));
   const a=await service.searchText({query:'crème & chocolat',language:'fr'});assert.equal((a.data as any).page_count,1);assert.equal(urls[0].searchParams.get('q'),'crème & chocolat');assert.equal(urls[0].searchParams.get('page_size'),'10');assert.equal(urls[0].searchParams.has('size'),false);
-  const b=await service.getTaxonomy({query:'pom &',taxonomy:'categories',language:'fr',limit:2});assert.equal((b.data as any).suggestions.length,1);assert.equal(urls[1].searchParams.get('taxonomy_names'),'categories');
+  const b=await service.getTaxonomy({query:'pom &',taxonomy:'categories',language:'fr',limit:2});assert.equal((b.data as any).suggestions.length,1);assert.equal(urls[1].searchParams.get('taxonomy_names'),'categories,category');
 });
 test('comparison refuses incompatible bases and prepared products, preserves per-product source',async()=>{
   const {service}=fixture(url=>json(product(url.pathname.split('/').at(-1),{nutrition:{aggregated_set:{per:url.pathname.endsWith('1111')?'100g':'100ml',preparation:'as_sold',nutrients:{proteins:{value:1}}}}})));

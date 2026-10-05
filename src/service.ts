@@ -30,6 +30,12 @@ const NUTRIENTS = ['energy','energy-kj','energy-kcal','fat','saturated-fat','car
 
 function object(v: unknown): JsonObject { return v && typeof v === 'object' && !Array.isArray(v) ? v as JsonObject : {}; }
 function str(v: unknown): string | null { return typeof v === 'string' && v.trim() ? v.trim() : null; }
+function brandsText(v: unknown): string | null {
+  if (typeof v === 'string') return str(v);
+  if (!Array.isArray(v)) return null;
+  const names = v.map(str).filter((name): name is string => name !== null);
+  return names.length ? names.join(', ') : null;
+}
 function positiveNumber(v: unknown): number | null { return typeof v === 'number' && Number.isFinite(v) ? v : null; }
 function boundedText(v: unknown, warnings: string[], field: string): string | null {
   const s = str(v); if (!s) return null;
@@ -87,7 +93,7 @@ function selectProduct(raw: unknown, warnings: string[]): JsonObject {
   return { code: str(p.code), product_name: str(p.product_name) ?? str(p.product_name_en), brands: str(p.brands), categories_tags: Array.isArray(p.categories_tags) ? p.categories_tags.slice(0,30) : [], countries_tags: Array.isArray(p.countries_tags) ? p.countries_tags.slice(0,30) : [], ingredients_text: boundedText(p.ingredients_text ?? p.ingredients_text_en,warnings,'ingredients_text'), ingredients_analysis_tags: Array.isArray(p.ingredients_analysis_tags) ? p.ingredients_analysis_tags.slice(0,30) : [], allergens_tags: Array.isArray(p.allergens_tags) ? p.allergens_tags.slice(0,30) : null, traces_tags: Array.isArray(p.traces_tags) ? p.traces_tags.slice(0,30) : null, nutriscore_grade: str(p.nutriscore_grade), nova_group: positiveNumber(p.nova_group), environmental_score_grade: str(p.environmental_score_grade), nutrition: { aggregated_set: { preparation: str(agg.preparation), per: str(agg.per), nutrients: selected }, input_sets: inputs }, legacy_nutriments: object(p.nutriments), selected_images: object(p.selected_images), image_url: str(p.image_url), last_modified_t: positiveNumber(p.last_modified_t), schema_version: positiveNumber(p.schema_version), tags_sources: p.tags_sources ?? null };
 }
 function selectSearchProduct(raw: unknown): JsonObject {
-  const p=object(raw); return { code: str(p.code), product_name: str(p.product_name), brands: str(p.brands), categories_tags: Array.isArray(p.categories_tags) ? p.categories_tags.slice(0,20) : [], countries_tags: Array.isArray(p.countries_tags) ? p.countries_tags.slice(0,20) : [], nutriscore_grade: str(p.nutriscore_grade), nova_group: positiveNumber(p.nova_group), ecoscore_grade: str(p.ecoscore_grade), legacy_nutriments: object(p.nutriments), last_modified_t: positiveNumber(p.last_modified_t) };
+  const p=object(raw); return { code: str(p.code), product_name: str(p.product_name), brands: brandsText(p.brands), categories_tags: Array.isArray(p.categories_tags) ? p.categories_tags.slice(0,20) : [], countries_tags: Array.isArray(p.countries_tags) ? p.countries_tags.slice(0,20) : [], nutriscore_grade: str(p.nutriscore_grade), nova_group: positiveNumber(p.nova_group), ecoscore_grade: str(p.ecoscore_grade), legacy_nutriments: object(p.nutriments), last_modified_t: positiveNumber(p.last_modified_t) };
 }
 type CacheEntry = { until: number; envelope: Envelope };
 export function createService(config: Config) {
@@ -164,10 +170,11 @@ export function createService(config: Config) {
   async function getTaxonomy(args: {query:string;taxonomy:string;language?:string;limit?:number}): Promise<Envelope> {
     const query=requiredString(args.query,'query',100), taxonomy=requiredString(args.taxonomy,'taxonomy',30).toLowerCase();
     if (!['categories','brands','countries','ingredients','additives','allergens','labels'].includes(taxonomy)) throw new ServiceError('INVALID_ARGUMENT','unsupported taxonomy');
+    const taxonomyAliases: Record<string, string> = { categories: 'categories,category', brands: 'brands,brand', countries: 'countries,country', ingredients: 'ingredients,ingredient', additives: 'additives,additive', allergens: 'allergens,allergen', labels: 'labels,label' };
     const lc=language(args.language), size=page(args.limit,'limit',10,20);
-    const url=qUrl('/autocomplete',{q:query,taxonomy_names:taxonomy,lang:lc,size:String(size)},'taxonomy');
+    const url=qUrl('/autocomplete',{q:query,taxonomy_names:taxonomyAliases[taxonomy],lang:lc,size:String(size)},'taxonomy');
     return request('taxonomy',url,(raw)=>{
-      const r=object(raw); const values=Array.isArray(raw)?raw:Array.isArray(r.results)?r.results:Array.isArray(r.hits)?r.hits:null;
+      const r=object(raw); const values = Object.hasOwn(r, 'options') ? (Array.isArray(r.options) ? r.options : null) : Array.isArray(raw) ? raw : Array.isArray(r.results) ? r.results : Array.isArray(r.hits) ? r.hits : null;
       if (!values) throw new ServiceError('UPSTREAM_SCHEMA','Autocomplete response omitted suggestions array');
       return {data:{taxonomy,query,suggestions:values.slice(0,size)},missing_fields:[]};
     });

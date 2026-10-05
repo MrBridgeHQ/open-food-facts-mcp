@@ -77,3 +77,7 @@ Other community projects in this area include [domdomegg/openfoodfacts-mcp](http
 - [Open Food Facts API documentation](https://openfoodfacts.github.io/openfoodfacts-server/api/)
 - [API and product schema change log](https://openfoodfacts.github.io/openfoodfacts-server/api/ref-api-and-product-schema-change-log/)
 - [Open Food Facts data and reuse conditions](https://world.openfoodfacts.org/data)
+
+## Apify Actor
+
+An additional Streamable HTTP entry point is available for Apify Standby. See the [Actor setup and English documentation](apify/README.md) for `/mcp`, authentication, deployment, local HTTP use, and operating limits. The original STDIO entry point remains available.

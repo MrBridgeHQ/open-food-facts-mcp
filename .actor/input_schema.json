@@ -1,0 +1,8 @@
+{
+  "title": "Open Food Facts MCP",
+  "description": "MCP calls supply tool arguments over HTTP. A normal Actor run performs an offline startup check; it does not query Open Food Facts.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {},
+  "required": []
+}

@@ -1,3 +1,5 @@
+> Historical report for the five-tool version; not acceptance evidence for 0.6.0.
+
 # Apify Actor validation — 2026-10-05
 
 ## Scope

@@ -1,3 +1,4 @@
+// Historical direct-network helper; do not run in this account. Live checks must use authorized MCP tools.
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
@@ -52,7 +53,7 @@ if(!userAgent) {
   try {
     await timeout(client.connect(transport),20000,'MCP initialize');
     const listed=await timeout(client.listTools(),20000,'tools/list');
-    assert.deepEqual(listed.tools.map(t=>t.name).sort(),['compare_products','get_product','get_taxonomy','search_products','search_text']);
+    assert.deepEqual(listed.tools.map(t=>t.name).sort(),['compare_products','get_product','get_taxonomy','search_text']);
     for(const barcode of ['3017620422003','3017620425035']) {
       await call('get_product',{barcode,language:'en'},data=>{
         assert.equal(data.code,barcode);assert.ok(typeof data.product_name==='string'&&data.product_name.length);
@@ -61,11 +62,6 @@ if(!userAgent) {
         return {code:data.code,product_name:data.product_name,basis:`${n.per}:${n.preparation}`,proteins:n.nutrients.proteins.value};
       });
     }
-    await call('search_products',{brand:'nutella',page_size:2,language:'en'},data=>{
-      assert.ok(Array.isArray(data.products)&&data.products.length>0&&data.products.length<=2);
-      assert.equal(data.page_count,data.products.length);assert.ok(data.products.every(p=>typeof p.code==='string'));
-      return {page_count:data.page_count,count:data.count,codes:data.products.map(p=>p.code)};
-    });
     await call('search_text',{query:'nutella',page_size:2,language:'en'},data=>{
       assert.ok(Array.isArray(data.products)&&data.products.length>0&&data.products.length<=2);
       assert.equal(data.page_count,data.products.length);assert.ok(data.products.some(p=>typeof p.brands==='string'&&p.brands.length>0));
@@ -90,7 +86,7 @@ if(!userAgent) {
   }
   if(childStderr)report.child_stderr=childStderr;
 }
-report.status=report.checks.length===6&&report.checks.every(check=>check.ok)?'PASS':'FAIL';
+report.status=report.checks.length===5&&report.checks.every(check=>check.ok)?'PASS':'FAIL';
 report.finished_at=new Date().toISOString();
 process.stdout.write(`${JSON.stringify(report,null,2)}\n`);
 if(report.status!=='PASS')process.exitCode=1;

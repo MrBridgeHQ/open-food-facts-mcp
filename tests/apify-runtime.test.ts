@@ -47,8 +47,9 @@ function fixtures(seen: Array<{ url: string; authorization: string | null; cooki
     if (url.pathname.includes('/api/v3.6/product/')) {
       return new Response(JSON.stringify(product(url.pathname.split('/').at(-1)!)));
     }
-    if (url.pathname === '/api/v2/search') {
-      return new Response(JSON.stringify({ products: [{ code: barcodeA, product_name: 'Fixture', brands: 'Nutella' }], count: 1 }));
+    if (url.pathname === '/cgi/search.pl') {
+      const html = `<link rel="canonical" href="${url.toString().replaceAll('&','&amp;')}"><span class="filterProducts__results"><span>search</span>1 product</span></div><script>var page_type = "products"; var products = [{"code":"${barcodeA}","product_display_name":"Fixture","url":"https://world.openfoodfacts.org/product/${barcodeA}/fixture"}];</script>`;
+      return new Response(html,{headers:{'Content-Type':'text/html'}});
     }
     if (url.pathname === '/search') {
       return new Response(JSON.stringify({ hits: [{ code: barcodeA, product_name: 'Fixture', brands: ['Nutella'] }], count: 1, is_count_exact: true }));
@@ -85,15 +86,14 @@ async function clientFor(url: URL, authorization?: string) {
   return client;
 }
 
-test('SDK client reaches all five tools and input errors over a real local HTTP socket', async () => {
+test('SDK client reaches all four tools and input errors over a real local HTTP socket', async () => {
   const runtime = await start();
   const client = await clientFor(runtime.url);
   try {
     assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(),
-      ['compare_products', 'get_product', 'get_taxonomy', 'search_products', 'search_text']);
+      ['compare_products', 'get_product', 'get_taxonomy', 'search_text']);
     const calls = [
       ['get_product', { barcode: barcodeA }],
-      ['search_products', { brand: 'nutella', page_size: 2 }],
       ['search_text', { query: 'nutella', page_size: 2 }],
       ['get_taxonomy', { query: 'choc', taxonomy: 'categories', limit: 2 }],
       ['compare_products', { barcodes: [barcodeA, barcodeB] }],
@@ -105,7 +105,7 @@ test('SDK client reaches all five tools and input errors over a real local HTTP 
       assert.ok(text && text.type === 'text');
       assert.deepEqual(JSON.parse(text.text), result.structuredContent);
     }
-    assert.ok(runtime.seen.length >= 5);
+    assert.ok(runtime.seen.length >= 4);
     const before = runtime.seen.length;
     const invalid = await client.callTool({ name: 'get_product', arguments: { barcode: 'bad' } });
     assert.equal(invalid.isError, true);
@@ -168,7 +168,7 @@ test('batch main validates mocked Actor input and exits without OFF requests', (
         APIFY_IS_AT_HOME: '1', APIFY_META_ORIGIN: 'ACTOR',
         ACTOR_DEFAULT_KEY_VALUE_STORE_ID: 'store_123', APIFY_TOKEN: 'test-token' } });
   assert.equal(child.status, 0, child.stderr);
-  assert.match(child.stderr, /MCP self-check: 5 tools/);
+  assert.match(child.stderr, /MCP self-check: 4 tools/);
   assert.doesNotMatch(child.stderr, /UNEXPECTED_FETCH/);
 });
 
@@ -210,7 +210,7 @@ for (const mode of ['LOCAL', 'STANDBY'] as const) {
       assert.ok(stderr.includes('MCP HTTP listening on ' + (mode === 'STANDBY' ? '0.0.0.0' : '127.0.0.1')));
       const response = await fetch('http://127.0.0.1:' + port + '/', { signal: AbortSignal.timeout(2_000) });
       assert.equal(response.status, 200);
-      assert.equal((await response.json() as { tools: number }).tools, 5);
+      assert.equal((await response.json() as { tools: number }).tools, 4);
       child.kill('SIGTERM');
       const result = await Promise.race([exited, timeout('SIGTERM timeout')]);
       assert.equal(result.code, 0, stderr);

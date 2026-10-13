@@ -1,5 +1,7 @@
 # Open Food Facts MCP
 
+Quatre outils sont disponibles. `search_products` est désactivé et absent de la découverte MCP. La recherche par filtres (catégorie, pays, marque, Nutri-Score) n’est pas proposée. `search_text` propose une recherche textuelle et ne remplace pas ces filtres.
+
 Un serveur [Model Context Protocol](https://modelcontextprotocol.io/) en lecture seule pour consulter Open Food Facts depuis un client MCP. Il s'agit d'un projet communautaire indépendant, sans affiliation ni soutien déclaré d'Open Food Facts.
 
 Le serveur requiert Node.js 22.23 ou ultérieur. Il utilise TypeScript, `@modelcontextprotocol/server` 2.0.0 et Zod 4, avec le transport MCP STDIO. Il consulte les données publiques de produits, de recherche et de taxonomie. Il ne modifie pas les fiches, n'envoie pas de photos et ne formule pas d'allégations de santé.
@@ -9,7 +11,6 @@ Le serveur requiert Node.js 22.23 ou ultérieur. Il utilise TypeScript, `@modelc
 | Outil | Arguments |
 | --- | --- |
 | `get_product` | `barcode` (4 à 32 chiffres), `language` facultatif |
-| `search_products` | `country`, `category`, `brand` (étiquettes de taxonomie), `nutriscore` (`a` à `e`), `page` (1 à 1000), `page_size` (1 à 20) et `language`, tous facultatifs |
 | `search_text` | `query` (1 à 120 caractères), `page` (1 à 1000), `page_size` (1 à 20) et `language`, ces trois derniers facultatifs |
 | `get_taxonomy` | `query` (1 à 100 caractères), `taxonomy` (`categories`, `brands`, `countries`, `ingredients`, `additives`, `allergens` ou `labels`), puis `language` facultatif et `limit` facultatif (1 à 20) |
 | `compare_products` | `barcodes` (2 à 5 codes distincts de 4 à 32 chiffres chacun), `language` facultatif |
@@ -57,6 +58,7 @@ Le serveur utilise STDIO. Ajoutez une entrée de ce type à la configuration de 
 ```
 
 N'écrivez pas de journaux sur stdout dans un processus MCP STDIO : ce flux transporte les messages du protocole.
+
 
 ## Données et précautions d'usage
 

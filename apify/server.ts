@@ -5,14 +5,14 @@ import { createMcpHandler, fromJsonSchema, InMemoryTransport, McpServer } from '
 import { createMcpServer } from '../src/server.ts';
 import type { Config } from '../src/service.ts';
 
-const TOOL_NAMES = ['get_product', 'search_products', 'search_text', 'get_taxonomy', 'compare_products'];
+const TOOL_NAMES = ['get_product', 'search_text', 'get_taxonomy', 'compare_products'];
 const MAX_BODY = 64 * 1024;
 const MAX_ACTIVE = 16;
 const REQUEST_TIMEOUT = 30_000;
 
 export async function createActorHandler(config: Config) {
   const backend = createMcpServer(config);
-  const client = new Client({ name: 'off-actor-bridge', version: '0.1.0' });
+  const client = new Client({ name: 'off-actor-bridge', version: '0.6.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   try {
     await backend.connect(serverTransport);
@@ -23,7 +23,7 @@ export async function createActorHandler(config: Config) {
       throw new Error('Unexpected backend tool contract');
     }
     const frontend = createMcpHandler(() => {
-      const server = new McpServer({ name: 'open-food-facts-mcp', version: '0.1.0' });
+      const server = new McpServer({ name: 'open-food-facts-mcp', version: '0.6.0' });
       for (const tool of tools) {
         server.registerTool(tool.name, {
           title: tool.title,

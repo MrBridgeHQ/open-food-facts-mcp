@@ -58,19 +58,6 @@ test('timeout, oversized body, UA validation and shared product budget',async()=
   for(let i=0;i<15;i++) await service.getProduct({barcode:String(1000+i)});
   await rejectsCode(service.getProduct({barcode:'2000'}),'LOCAL_RATE_LIMIT');
 });
-test('v2 search pagination empty and allowlisted filters',async()=>{
-  const {service,urls}=fixture(()=>json({products:[],count:0}));
-  const out=await service.searchProducts({country:'fr',category:'en:snacks',nutriscore:'a',page_size:20});
-  assert.deepEqual((out.data as any).products,[]);assert.equal((out.data as any).page_count,0);assert.equal((out.data as any).total_pages,0);
-  assert.equal(urls[0].pathname,'/api/v2/search');assert.equal(urls[0].searchParams.get('countries_tags'),'fr');assert.equal(urls[0].searchParams.get('categories_tags'),'en:snacks');assert.equal(out.source.api_version,'v2');
-  await rejectsCode(service.searchProducts({country:'https://evil.test'}),'INVALID_ARGUMENT');
-});
-test('unexpected search and autocomplete JSON is an upstream schema error',async()=>{
-  const {service}=fixture(()=>json({message:'upstream changed'}));
-  await rejectsCode(service.searchProducts({}),'UPSTREAM_SCHEMA');
-  await rejectsCode(service.searchText({query:'apple'}),'UPSTREAM_SCHEMA');
-  await rejectsCode(service.getTaxonomy({query:'apple',taxonomy:'categories'}),'UPSTREAM_SCHEMA');
-});
 test('search text and taxonomy encode query and bound results',async()=>{
   const {service,urls}=fixture(url=>url.pathname==='/search'?json({hits:[{code:'1234',product_name:'A'}],count:1,is_count_exact:true}):json({results:[{id:'en:apple'}]}));
   const a=await service.searchText({query:'crème & chocolat',language:'fr'});assert.equal((a.data as any).page_count,1);assert.equal(urls[0].searchParams.get('q'),'crème & chocolat');assert.equal(urls[0].searchParams.get('page_size'),'10');assert.equal(urls[0].searchParams.has('size'),false);

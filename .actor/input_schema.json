@@ -1,6 +1,6 @@
 {
   "title": "Open Food Facts MCP",
-  "description": "Provide your own monitored contact email before starting this MCP server. For Standby, save it in your private task and enable passing task input to Standby runs.",
+  "description": "Provide your own monitored contact email before starting this four-tool MCP server. It supports barcode lookups, text search, taxonomy suggestions and product comparisons. For Standby, save the email in your private task and enable passing task input to Standby runs.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {

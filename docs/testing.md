@@ -11,7 +11,7 @@ npm run typecheck
 npm test
 ```
 
-Tests use synthetic Open Food Facts responses. They require no API key and do not contact the public API.
+Tests use a captured Open Food Facts HTML page and synthetic responses. They require no API key and do not contact the public API.
 
 ## Coverage
 
@@ -19,7 +19,7 @@ The service tests cover product nutrition and units, missing values, cache expir
 
 The protocol tests use the official SDK in two ways:
 
-- In-memory transports initialize a client and server, list the five tools, and call each tool with a simulated upstream service.
+- In-memory transports initialize a client and server, list the four tools, and call each tool with a simulated upstream service.
 - The stdio test starts the real entry point as a child process, initializes an SDK client, lists the tools, and checks that an invalid barcode is rejected before any network request.
 
 The stdio test needs permission to start child processes. A restricted execution environment can prevent this independently of the MCP implementation.
@@ -31,3 +31,7 @@ On October 1, 2026, TypeScript checking passed and all 12 tests passed using Nod
 These results establish local behavior against the tested fixtures and MCP client. They do not establish current availability or correctness of the live Open Food Facts services. A live API smoke test and hosted CI execution have not yet been completed.
 
 See [architecture.md](architecture.md) for endpoint contracts, nutrition comparison rules, and limits. The English documentation is in [README.md](../README.md); the French documentation is in [README.fr.md](../README.fr.md).
+
+## HTML candidate validation (offline)
+
+`tests/html-search.test.ts` exercises the captured HTML page, synthetic CGI criteria and pagination, empty-page guard, icons versus preference grades, malformed JSON, unsafe URLs, content type, byte cap, body stall, cache and shared request budget. The one captured success does not prove that other filter combinations or live Apify runs work.

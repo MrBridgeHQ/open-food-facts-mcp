@@ -11,7 +11,6 @@ All optional fields may be omitted.
 | Tool | Input | Upstream endpoint |
 | --- | --- | --- |
 | `get_product` | `barcode` (4–32 digits), `language?` | `/api/v3.6/product/{code}` |
-| `search_products` | `country?`, `category?`, `brand?` taxonomy tags; `nutriscore?` (`a`–`e`); `page?` (1–1000); `page_size?` (1–20); `language?` | `/api/v2/search` |
 | `search_text` | `query` (1–120 characters), `page?` (1–1000), `page_size?` (1–20), `language?` | Search-a-licious `/search` |
 | `get_taxonomy` | `query` (1–100 characters), `taxonomy`, `language?`, `limit?` (1–20) | Search-a-licious `/autocomplete` |
 | `compare_products` | `barcodes` (2–5 distinct codes, each 4–32 digits), `language?` | One Product API lookup per barcode |
@@ -39,6 +38,14 @@ Successful tools return this common structure:
 
 `source` identifies the upstream service and API version and includes the request URL. A comparison contains each product's own source envelope because it performs multiple lookups. `retrieved_at` is the retrieval time, `cache_hit` indicates whether this process reused its in-memory result, `missing_fields` lists expected values not supplied by the response, and `warnings` explains notable omissions or transformations. Missing numeric values are not changed to zero. Errors use an MCP error result with a stable code, message, and optional retry delay.
 
+## Retained internal HTML search (not exposed by MCP in 0.6.0)
+
+The following implementation is retained for regression tests. No registered MCP tool calls it.
+
+The internal `searchProducts` service method sends one GET to the OFF web CGI search page. Each nonempty country, category, brand, and Nutri-Score filter becomes a contiguous `tagtype_i`, `tag_contains_i=contains`, `tag_i` triplet, combined by the server. Inputs are taxonomy tags or slugs, not free-text operators. A request includes `page_size`, `page` and optional `lc`; anonymous pages are limited to 1–10. The page is read as HTML, capped at 1 MB and 8 seconds including the body, without redirects or retries. The embedded `products` JSON is parsed as data; no JavaScript runs. The parser verifies search criteria, page indicator, strict thousands-grouped count, requested language through `lc` or a localized `world-<lang>` host, barcode syntax and duplicate codes. Only an explicit OFF no-products marker permits an empty result.
+
+The web projection exposes `code`, combined `product_display_name`, product and small image URLs, and score icons. Separate `product_name`, `brands`, `categories_tags`, `countries_tags`, `legacy_nutriments`, and `last_modified_t` remain `null` and are listed in `missing_fields`; additional absent display fields and scores are listed when an observed hit lacks them. No details are invented. Score values are inferred only from known attribute IDs and trusted icon URLs, never preference `grade`. `count_reported` reflects the web display and may be an estimate. `reported_total_pages`, `count`, `is_count_exact`, and `total_pages` are `null` because pagination links may show only a window. Use `get_product` for individual detail reads; search performs no automatic per-hit lookups. This contract is based on one captured successful page and official web source; other pages need live validation.
+
 ## Nutrition and provenance
 
 For a product, `data.nutrition.aggregated_set` exposes the v3 aggregated nutrition set, including its `per` basis, `preparation`, and selected nutrients. Each normalized nutrient carries a value, normalized unit, entered unit, modifier, and available source metadata. The server also retains available `nutrition.input_sets` with their preparation, basis, source, update time, and selected nutrient inputs. Legacy `nutriments` values are kept in a separate `legacy_nutriments` field rather than merged into the v3 set.
@@ -60,9 +67,13 @@ Open Food Facts currently documents upstream limits of 15 product reads and 10 s
 ## Upstream endpoints and references
 
 - Product reads: `https://world.openfoodfacts.org/api/v3.6/product/{code}`
-- Filtered product search: `https://world.openfoodfacts.org/api/v2/search`
+- Retained internal search, not exposed by MCP: `https://world.openfoodfacts.org/cgi/search.pl?action=process`
 - Text search: `https://search.openfoodfacts.org/search`
 - Taxonomy autocomplete: `https://search.openfoodfacts.org/autocomplete`
 - [Open Food Facts API documentation](https://openfoodfacts.github.io/openfoodfacts-server/api/)
 - [API and product schema change log](https://openfoodfacts.github.io/openfoodfacts-server/api/ref-api-and-product-schema-change-log/)
 - [Open Food Facts data and reuse conditions](https://world.openfoodfacts.org/data)
+
+## Bounded 5xx observation
+
+A received 5xx keeps its exact HTTP status. The server reads at most 8,193 bytes to inspect an 8,192-byte prefix, with a separate 500 ms body deadline. It reports only fixed error phrases and a fixed MIME category (`html`, `json`, `text`, `other`, or `unknown`); it never returns arbitrary body or header text. The canonical phrase `Page temporarily unavailable - Open Food Facts` identifies a page signature, not the reason for the 503. Body truncation and read failure are reported separately. This adds no request, retry, fallback, proxy, or per-product lookup.

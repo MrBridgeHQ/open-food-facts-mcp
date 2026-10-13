@@ -1,3 +1,5 @@
+import { captureUpstreamError, type UpstreamDetails } from './upstream-error.ts';
+import { parseHtmlSearch, HtmlSearchError } from './html-search.ts';
 export type JsonObject = Record<string, unknown>;
 export type Kind = 'product' | 'search' | 'taxonomy';
 export type Envelope<T = unknown> = {
@@ -11,7 +13,8 @@ export type Envelope<T = unknown> = {
 export class ServiceError extends Error {
   readonly code: string;
   readonly retry_after_seconds?: number;
-  constructor(code: string, message: string, retry_after_seconds?: number) { super(message); this.code=code; this.retry_after_seconds=retry_after_seconds; }
+  readonly upstream?: UpstreamDetails;
+  constructor(code: string, message: string, retry_after_seconds?: number, upstream?: UpstreamDetails) { super(message); this.code=code; this.retry_after_seconds=retry_after_seconds; this.upstream=upstream; }
 }
 export interface Config {
   fetch?: typeof fetch;
@@ -73,7 +76,7 @@ function qUrl(path: string, params: Record<string, string | undefined>, kind: Ki
   for (const [k,v] of Object.entries(params)) if (v !== undefined) u.searchParams.set(k,v);
   return u.toString();
 }
-function source(kind: Kind, url: string) { return { service: url.includes('/cgi/') || url.includes('/api/v2/') ? 'Open Food Facts' : kind === 'product' ? 'Open Food Facts' : 'Open Food Facts Search-a-licious', api_version: url.includes('/api/v2/') ? 'v2' : kind === 'product' ? 'v3.6' : kind === 'search' ? 'search-a-licious' : 'autocomplete', url }; }
+function source(kind: Kind, url: string) { return { service: url.includes('/cgi/') || url.includes('/api/v2/') ? 'Open Food Facts' : kind === 'product' ? 'Open Food Facts' : 'Open Food Facts Search-a-licious', api_version: url.includes('/cgi/search.pl') ? 'html' : url.includes('/api/v2/') ? 'v2' : kind === 'product' ? 'v3.6' : kind === 'search' ? 'search-a-licious' : 'autocomplete', url }; }
 function normalizedNutrient(v: unknown, key: string): JsonObject {
   const o = object(v);
   const val = positiveNumber(o.value) ?? positiveNumber(o.value_computed);
@@ -102,7 +105,7 @@ export function createService(config: Config) {
   const cache = new Map<string,CacheEntry>(), inflight = new Map<string,Promise<Envelope>>();
   const calls: Record<Kind, number[]> = { product: [], search: [], taxonomy: [] };
   const cooldown: Partial<Record<Kind,number>> = {};
-  async function request(kind: Kind, url: string, parse: (v: unknown,w: string[])=>{data: unknown; missing_fields: string[]}): Promise<Envelope> {
+  async function request(kind: Kind, url: string, parse: (v: unknown,w: string[])=>{data: unknown; missing_fields: string[]}, format: 'json' | 'html' = 'json'): Promise<Envelope> {
     const t=now(), cached=cache.get(url);
     if (cached && cached.until > t) return { ...cached.envelope, cache_hit: true };
     const current=inflight.get(url); if (current) return (await current);
@@ -112,24 +115,53 @@ export function createService(config: Config) {
       if (calls[kind].length >= LIMIT[kind]) throw new ServiceError('LOCAL_RATE_LIMIT', `${kind} request budget exhausted`);
       calls[kind].push(now());
       let response: Response;
-      try { response=await doFetch(url,{method:'GET',redirect:'error',headers:{'User-Agent':config.userAgent,'Accept':'application/json'},signal:AbortSignal.timeout(config.timeoutMs ?? 8000)}); }
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),Math.min(config.timeoutMs ?? 8000,8000));
+      const signal=controller.signal;
+      try {
+      try { response=await doFetch(url,{method:'GET',redirect:'error',headers:{'User-Agent':config.userAgent,'Accept':format==='html'?'text/html':'application/json'},signal}); }
       catch(e) { if ((e as Error).name === 'TimeoutError' || (e as Error).name === 'AbortError') throw new ServiceError('TIMEOUT','Open Food Facts request timed out'); throw new ServiceError('NETWORK',`Open Food Facts network error: ${(e as Error).message}`); }
       if (response.status===404) throw new ServiceError('NOT_FOUND','Resource not found');
       if (response.status===429) { const raw=response.headers.get('Retry-After'); const parsed=raw && /^\d+$/u.test(raw) ? Number(raw) : raw ? Math.ceil((Date.parse(raw)-now())/1000) : NaN; const seconds=Number.isFinite(parsed)&&parsed>0 ? parsed : 60; cooldown[kind]=now()+seconds*1000; throw new ServiceError('RATE_LIMITED','Open Food Facts rate limit',seconds); }
-      if (response.status>=500) throw new ServiceError('UPSTREAM','Open Food Facts server error');
+      if (response.status>=500) throw new ServiceError('UPSTREAM','Open Food Facts server error',undefined,await captureUpstreamError(response,signal));
       if (response.status>=300 && response.status<400) throw new ServiceError('REDIRECT','Open Food Facts redirected the request');
       if (!response.ok) throw new ServiceError('HTTP',`Open Food Facts HTTP ${response.status}`);
-      const max=config.maxBodyBytes ?? 1_000_000;
+      if (format==='html' && !/^text\/html(?:\s*;|$)/iu.test(response.headers.get('Content-Type') ?? '')) throw new ServiceError('HTML_SCHEMA','Open Food Facts did not return HTML');
+      const max=format==='html'?Math.min(config.maxBodyBytes ?? 1_000_000,1_000_000):(config.maxBodyBytes ?? 1_000_000);
       if (Number(response.headers.get('Content-Length'))>max) throw new ServiceError('BODY_TOO_LARGE','Open Food Facts response too large');
       const reader=response.body?.getReader(); let body='';
-      if (reader) { const decoder=new TextDecoder(); let bytes=0; try { for (;;) { const chunk=await reader.read(); if (chunk.done) break; bytes+=chunk.value.byteLength; if (bytes>max) { await reader.cancel(); throw new ServiceError('BODY_TOO_LARGE','Open Food Facts response too large'); } body+=decoder.decode(chunk.value,{stream:true}); } body+=decoder.decode(); } catch(e) { if(e instanceof ServiceError) throw e; if ((e as Error).name === 'TimeoutError' || (e as Error).name === 'AbortError') throw new ServiceError('TIMEOUT','Open Food Facts response timed out'); throw new ServiceError('NETWORK','Open Food Facts response stream failed'); } }
-      else { body=await response.text(); if (Buffer.byteLength(body)>max) throw new ServiceError('BODY_TOO_LARGE','Open Food Facts response too large'); }
-      let raw: unknown; try { raw=JSON.parse(body); } catch { throw new ServiceError('INVALID_JSON','Open Food Facts returned invalid JSON'); }
-      const warnings: string[]=[]; const parsed=parse(raw,warnings);
+      if (reader) {
+        const decoder=new TextDecoder(); let bytes=0;
+        try {
+          for (;;) {
+            const chunk=await new Promise<ReadableStreamReadResult<Uint8Array>>((resolve,reject)=>{
+              if (signal.aborted) { reject(new DOMException('Timed out','TimeoutError')); return; }
+              const abort=()=>reject(new DOMException('Timed out','TimeoutError'));
+              signal.addEventListener('abort',abort,{once:true});
+              reader.read().then(resolve,reject).finally(()=>signal.removeEventListener('abort',abort));
+            });
+            if (chunk.done) break;
+            bytes+=chunk.value.byteLength;
+            if (bytes>max) { void reader.cancel().catch(()=>{}); throw new ServiceError('BODY_TOO_LARGE','Open Food Facts response too large'); }
+            body+=decoder.decode(chunk.value,{stream:true});
+          }
+          body+=decoder.decode();
+        } catch(e) {
+          if(e instanceof ServiceError) throw e;
+          if (signal.aborted || (e as Error).name === 'TimeoutError' || (e as Error).name === 'AbortError') { void reader.cancel().catch(()=>{}); throw new ServiceError('TIMEOUT','Open Food Facts response timed out'); }
+          throw new ServiceError('NETWORK','Open Food Facts response stream failed');
+        }
+      }
+      let raw: unknown;
+      if (format==='html') raw=body;
+      else { try { raw=JSON.parse(body); } catch { throw new ServiceError('INVALID_JSON','Open Food Facts returned invalid JSON'); } }
+      const warnings: string[]=[]; let parsed: {data:unknown;missing_fields:string[]};
+      try { parsed=parse(raw,warnings); } catch (e) { if (e instanceof HtmlSearchError) throw new ServiceError(e.code,e.message); throw e; }
       const envelope: Envelope={ source: source(kind,url), retrieved_at: new Date(now()).toISOString(), cache_hit:false, data:parsed.data, missing_fields:parsed.missing_fields, warnings };
       cache.set(url,{until:now()+TTL[kind],envelope});
       while(cache.size>(config.cacheMax ?? 200)) cache.delete(cache.keys().next().value!);
       return envelope;
+      } finally { clearTimeout(timer); }
     })();
     inflight.set(url,promise);
     try { return await promise; } finally { inflight.delete(url); }
@@ -146,16 +178,20 @@ export function createService(config: Config) {
     });
   }
   async function searchProducts(args: {country?:string;category?:string;brand?:string;nutriscore?:string;page?:number;page_size?:number;language?:string}): Promise<Envelope> {
-    const p=page(args.page,'page',1,1000), size=page(args.page_size,'page_size',10,20), lc=language(args.language);
-    const params: Record<string,string|undefined>={page:String(p),page_size:String(size),fields:SEARCH_FIELDS.join(','),lc,countries_tags:tags(args.country,'country'),categories_tags:tags(args.category,'category'),brands_tags:tags(args.brand,'brand')};
-    if(args.nutriscore!==undefined){const v=requiredString(args.nutriscore,'nutriscore',1).toLowerCase();if(!/^[abcde]$/u.test(v)) throw new ServiceError('INVALID_ARGUMENT','nutriscore must be A–E');params.nutrition_grades_tags=v;}
-    const url=qUrl('/api/v2/search',params,'product');
+    const p=page(args.page,'page',1,10), size=page(args.page_size,'page_size',10,20), lc=language(args.language);
+    const filters: [string,string|undefined][]=[['countries',tags(args.country,'country')],['categories',tags(args.category,'category')],['brands',tags(args.brand,'brand')]];
+    if(args.nutriscore!==undefined){const v=requiredString(args.nutriscore,'nutriscore',1).toLowerCase();if(!/^[abcde]$/u.test(v)) throw new ServiceError('INVALID_ARGUMENT','nutriscore must be A–E');filters.push(['nutrition_grades',v]);}
+    const params: Record<string,string|undefined>={action:'process'};
+    let i=0; for(const [type,value] of filters) if(value!==undefined){params[`tagtype_${i}`]=type;params[`tag_contains_${i}`]='contains';params[`tag_${i}`]=value;i++;}
+    params.page_size=String(size);params.page=String(p);params.lc=lc;
+    const url=qUrl('/cgi/search.pl',params,'product');
     return request('search',url,(raw,warnings)=>{
-      const r=object(raw), items=Array.isArray(r.products)?r.products:[];
-      if (!Array.isArray(r.products)) throw new ServiceError('UPSTREAM_SCHEMA','Open Food Facts search response omitted products array');
-      const count=positiveNumber(r.count); const data={products:items.slice(0,size).map(selectSearchProduct),page:p,page_size:size,page_count:Math.min(items.length,size),count,total_pages:count===null?null:Math.ceil(count/size)};
-      return {data,missing_fields:count===null?['count']:[]};
-    });
+      const parsed=parseHtmlSearch(raw as string,url,p,size);
+      const missing=['product_name','brands','categories_tags','countries_tags','legacy_nutriments','last_modified_t'];
+      for (const field of ['product_display_name','url','image_front_small_url','nutriscore_grade','nova_group','ecoscore_grade']) if (parsed.products.some(product=>product[field]===null)) missing.push(field);
+      warnings.push('Web search provides display names and attribute icons, not full product fields; counts may be estimated');
+      return {data:{products:parsed.products,page:p,page_size:size,page_count:parsed.products.length,count:null,count_reported:parsed.count_reported,is_count_exact:null,total_pages:null,reported_total_pages:parsed.reported_total_pages},missing_fields:missing};
+    },'html');
   }
   async function searchText(args: {query:string;page?:number;page_size?:number;language?:string}): Promise<Envelope> {
     const query=requiredString(args.query,'query',120), p=page(args.page,'page',1,1000), size=page(args.page_size,'page_size',10,20), lc=language(args.language);

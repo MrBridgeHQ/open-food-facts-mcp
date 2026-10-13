@@ -26,8 +26,9 @@ function fixtureFetch(counter: { calls: number }, gate?: Promise<void>): typeof 
       return code === '7777' ? new Response(null, { status: 404 }) :
         new Response(JSON.stringify(product(code)));
     }
-    if (url.pathname === '/api/v2/search') {
-      return new Response(JSON.stringify({ products: [{ code: codeA, product_name: 'Fixture', brands: 'Nutella' }], count: 1 }));
+    if (url.pathname === '/cgi/search.pl') {
+      const html = `<link rel="canonical" href="${url.toString().replaceAll('&','&amp;')}"><span class="filterProducts__results"><span>search</span>1 product</span></div><script>var page_type = "products"; var products = [{"code":"${codeA}","product_display_name":"Fixture","url":"https://world.openfoodfacts.org/product/${codeA}/fixture"}];</script>`;
+      return new Response(html,{headers:{'Content-Type':'text/html'}});
     }
     if (url.pathname === '/search') {
       return new Response(JSON.stringify({ hits: [{ code: codeA, product_name: 'Fixture', brands: ['Nutella'] }], count: 1, is_count_exact: true }));
@@ -78,7 +79,7 @@ test('two clients share in-flight cache and reconnect to one backend', async () 
   const a = await connect(actor), b = await connect(actor);
   try {
     assert.deepEqual((await a.listTools()).tools.map(tool => tool.name).sort(),
-      ['compare_products', 'get_product', 'get_taxonomy', 'search_products', 'search_text']);
+      ['compare_products', 'get_product', 'get_taxonomy', 'search_text']);
     const one = a.callTool({ name: 'get_product', arguments: { barcode: codeA, language: 'en' } });
     const two = b.callTool({ name: 'get_product', arguments: { barcode: codeA, language: 'en' } });
     release();
@@ -95,13 +96,12 @@ test('two clients share in-flight cache and reconnect to one backend', async () 
   } finally { await a.close(); await actor.close(); }
 });
 
-test('all five tools relay structured data and tool errors', async () => {
+test('all four tools relay structured data and tool errors', async () => {
   const actor = await createActorHandler({ userAgent: ua, fetch: fixtureFetch({ calls: 0 }) });
   const client = await connect(actor);
   try {
     for (const [name, args] of [
       ['get_product', { barcode: codeA }],
-      ['search_products', { brand: 'nutella', page_size: 2 }],
       ['search_text', { query: 'nutella', page_size: 2 }],
       ['get_taxonomy', { query: 'choc', taxonomy: 'categories', limit: 2 }],
       ['compare_products', { barcodes: [codeA, codeB] }],
@@ -149,7 +149,7 @@ test('readiness, guards, malformed JSON, chunked size and legacy SSE via Node HT
   try {
     const ready = await localRequest(port, '/', { host: 'probe.internal' });
     assert.equal(ready.status, 200);
-    assert.equal(JSON.parse(ready.body).tools, 5);
+    assert.equal(JSON.parse(ready.body).tools, 4);
     assert.equal(count.calls, 0);
     assert.equal((await localRequest(port, '/mcp', { host: 'evil.test', method: 'POST', body: '{}' })).status, 400);
     assert.equal((await localRequest(port, '/mcp', { origin: 'null', method: 'POST', body: '{}' })).status, 403);

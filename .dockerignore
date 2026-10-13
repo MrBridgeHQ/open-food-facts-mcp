@@ -21,3 +21,8 @@
 !.actor/actor.json
 !.actor/input_schema.json
 !.actor/web_server_schema.json
+!src/html-search.ts
+!fixtures/
+!fixtures/*.html
+
+!src/upstream-error.ts

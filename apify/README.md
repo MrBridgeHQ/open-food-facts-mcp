@@ -1,6 +1,8 @@
 # Open Food Facts MCP on Apify
 
-Use five read-only MCP tools to look up packaged foods, search products, retrieve taxonomy suggestions, and compare nutrition data. This Actor adapts the [open-source Open Food Facts MCP server](https://github.com/MrBridgeHQ/open-food-facts-mcp) to Apify Standby with a Streamable HTTP endpoint at `/mcp`.
+Four tools are available. `search_products` is disabled and absent from MCP discovery. Filtered search by category, country, brand or Nutri-Score is unavailable. `search_text` provides text search and does not replace those filters.
+
+Use four read-only MCP tools to look up packaged foods, search products, retrieve taxonomy suggestions, and compare nutrition data. This Actor adapts the [open-source Open Food Facts MCP server](https://github.com/MrBridgeHQ/open-food-facts-mcp) to Apify Standby with a Streamable HTTP endpoint at `/mcp`.
 
 This is an independent project, not an official Open Food Facts service. [Documentation française](README.fr.md).
 
@@ -29,7 +31,6 @@ A regular **Start** run reads and validates your input, performs initialization 
 | Tool | What it does | Example arguments |
 | --- | --- | --- |
 | `get_product` | Read one product by barcode | `{"barcode":"3017620422003","language":"en"}` |
-| `search_products` | Search with taxonomy filters | `{"country":"en:france","category":"en:chocolates","page_size":5}` |
 | `search_text` | Search product text through Search-a-licious | `{"query":"dark chocolate","page_size":5}` |
 | `get_taxonomy` | Find category, brand, country, ingredient, additive, allergen, or label tags | `{"query":"chocolate","taxonomy":"categories","limit":5}` |
 | `compare_products` | Compare 2–5 distinct barcodes on a matching nutrition basis | `{"barcodes":["3017620422003","3017620425035"]}` |
@@ -82,6 +83,7 @@ The local endpoint is `http://127.0.0.1:4321/mcp`. `GET /` is a readiness check 
 
 The Dockerfile pins the Node and Python base image digests, verifies locked dependency archives, runs TypeScript checking and offline tests, and starts the final container as an unprivileged user. The MCP client package is required at runtime by the in-memory bridge, so the image retains the locked client dependency.
 
+
 ## Limits and data quality
 
 All HTTP clients in one container share the same backend, cache, in-flight deduplication, and rolling-minute counters: 15 product requests, 10 search requests, and 10 taxonomy requests. Cache durations are five minutes for products, one minute for searches, and ten minutes for taxonomy suggestions. Separate containers and other users of the same outgoing IP do not share these counters; upstream limits can therefore still apply. Use Open Food Facts data exports for bulk work.
@@ -105,3 +107,7 @@ Native/server-side clients normally omit `Origin`. If a client sends it, it must
 The email is stored in your Apify task/run input and sent to Open Food Facts in request headers as the contact for your usage. The application does not log the email or include it in MCP results. Email syntax is checked; mailbox ownership and deliverability are not verified. Use a private task, keep access to it and your API token private, and save a new contact before starting a new run if the address changes.
 
 Apify documents that Standby runs are isolated per user account. This server uses one contact per run; it does not authenticate different people who share the same Apify account, task or token. Do not share a task/token across independently accountable users.
+
+## MCP results and run output
+
+Results are returned directly to the connected MCP client. Product results are not persisted in a dataset or key-value store, so the Apify output schema declares no stored outputs. A regular batch run only initializes the server and discovers its tools. Use your private task’s Standby endpoint to query products.

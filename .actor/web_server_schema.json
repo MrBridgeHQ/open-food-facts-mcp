@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Open Food Facts MCP",
-    "version": "0.1.0",
+    "version": "0.6.0",
     "description": "Stateless Streamable HTTP MCP endpoint. Obtain the actual Standby base URL from Apify Console. Product tool arguments are MCP messages, not REST query parameters."
   },
   "security": [
@@ -48,7 +48,7 @@
                     },
                     "tools": {
                       "type": "integer",
-                      "example": 5
+                      "example": 4
                     }
                   }
                 }

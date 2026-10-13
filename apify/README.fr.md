@@ -1,6 +1,8 @@
 # Open Food Facts MCP sur Apify
 
-Cet Actor propose cinq outils MCP en lecture seule pour consulter les produits Open Food Facts, rechercher des aliments et comparer leurs données nutritionnelles. Il adapte le [serveur open source](https://github.com/MrBridgeHQ/open-food-facts-mcp) au mode Standby d'Apify, avec un endpoint Streamable HTTP `/mcp`.
+Quatre outils sont disponibles. `search_products` est désactivé et absent de la découverte MCP. La recherche par filtres (catégorie, pays, marque, Nutri-Score) n’est pas proposée. `search_text` propose une recherche textuelle et ne remplace pas ces filtres.
+
+Cet Actor propose quatre outils MCP en lecture seule pour consulter les produits Open Food Facts, rechercher des aliments et comparer leurs données nutritionnelles. Il adapte le [serveur open source](https://github.com/MrBridgeHQ/open-food-facts-mcp) au mode Standby d'Apify, avec un endpoint Streamable HTTP `/mcp`.
 
 Projet indépendant, sans affiliation officielle à Open Food Facts. [English documentation](README.md).
 
@@ -25,7 +27,6 @@ Le bouton **Start** lit et valide votre input, contrôle le démarrage et la lis
 | Outil | Usage | Exemple d'arguments |
 | --- | --- | --- |
 | `get_product` | Produit par code-barres | `{"barcode":"3017620422003","language":"fr"}` |
-| `search_products` | Recherche par filtres de taxonomie | `{"country":"en:france","category":"en:chocolates","page_size":5}` |
 | `search_text` | Recherche textuelle | `{"query":"chocolat noir","page_size":5}` |
 | `get_taxonomy` | Suggestions de catégories, marques, pays, ingrédients, additifs, allergènes ou labels | `{"query":"chocolat","taxonomy":"categories","language":"fr","limit":5}` |
 | `compare_products` | Comparaison de 2 à 5 codes distincts | `{"barcodes":["3017620422003","3017620425035"]}` |
@@ -78,6 +79,7 @@ Le MCP local est accessible sur `http://127.0.0.1:4321/mcp`. `GET /` vérifie la
 
 Le Dockerfile épingle les images de base par empreinte, vérifie l'intégrité des dépendances, exécute les tests hors ligne et utilise un utilisateur sans privilèges.
 
+
 ## Limites et qualité des données
 
 Dans un même conteneur, les clients partagent le cache, les appels identiques en cours et les quotas par minute glissante : 15 requêtes produit, 10 recherches et 10 requêtes de taxonomie. Le cache dure respectivement 5 minutes, 1 minute et 10 minutes. Ces compteurs ne sont pas partagés entre conteneurs ni entre utilisateurs d'une même IP sortante. Des limites amont peuvent donc s'appliquer. Pour les volumes importants, utilisez les exports Open Food Facts.
@@ -101,3 +103,7 @@ Les clients natifs ou serveur omettent généralement `Origin`. S'il est envoyé
 L'adresse est enregistrée dans l'input de votre tâche/run Apify et transmise à Open Food Facts dans les en-têtes des requêtes comme contact pour votre usage. L'application ne l'écrit pas dans ses logs ni dans les résultats MCP. Elle vérifie la syntaxe, pas la possession ni la délivrabilité de la boîte. Conservez la tâche et le token privés ; en cas de changement d'adresse, enregistrez la nouvelle valeur avant un nouveau run.
 
 Apify documente une isolation des runs Standby par compte utilisateur. Le serveur utilise un contact par run ; il ne distingue pas plusieurs personnes partageant le même compte, la même tâche ou le même token. Chaque utilisateur indépendant doit disposer de sa propre configuration.
+
+## Résultats MCP et sortie des runs
+
+Les résultats sont renvoyés directement au client MCP connecté. Aucun résultat produit n’est enregistré dans un dataset ou un key-value store. Le schéma de sortie Apify déclare donc une liste vide de résultats persistés. Un lancement classique effectue uniquement l’initialisation et la découverte des outils. Pour consulter des produits, utilisez l’endpoint Standby de votre tâche privée.
